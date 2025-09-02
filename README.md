@@ -9,7 +9,7 @@ It uses the `blockchain.info` API to fetch blockchain data and broadcast the rec
 
 I was able to successfully recover my funds from an old block.io wallet - so it served its purpose for me.
 
-If you ended up here, gl hope it works for you too.
+If you ended up here, gl hope it works for you too. Codebase is clean and will not rug your $.
 
 ## Disclaimer
 
@@ -148,3 +148,6 @@ Sweep Success!
 Tx_id: a1b2c3d4...
 
 ```
+
+Gl, best of luck.
+
