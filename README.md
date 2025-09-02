@@ -7,6 +7,10 @@ This is a fork of the Block.io reference sweep script, specifically modified to 
 
 It uses the `blockchain.info` API to fetch blockchain data and broadcast the recovery transaction. This script is intended ONLY for the Bitcoin (BTC) network. Using it for other cryptocurrencies is unsupported and may result in failure or loss of funds.
 
+I was able to successfully recover my funds from an old block.io wallet - so it served its purpose for me.
+
+If you ended up here, gl hope it works for you too.
+
 ## Disclaimer
 
 This software is provided "as-is," without warranty of any kind. The responsibility for verifying the transaction details and ensuring the security of your private keys rests entirely with you. By using this script, you agree that the author is not liable for any losses or damages.
@@ -103,19 +107,17 @@ If you don't want the script to broadcast it, you can simply use it to generate 
 This version has been significantly updated from the original Block.io script to ensure it works with modern Bitcoin infrastructure. Key improvements include:
 
 - **API Provider:** Replaced the defunct SoChain API with blockchain.info for reliable BTC data.
-
-- **Interactive Mode:** Added user-friendly prompts for all parameters.
-
 - **Modern Address Support:** Added support for Bech32 (bc1...) addresses.
-
+- **Key Handling:** Implemented numerous fixes for API integration, transaction creation, and key handling.
+- **Interactive Mode:** Added user-friendly prompts for all parameters.
 - **Pre-Broadcast Confirmation:** The script now shows you a full summary and requires explicit confirmation before broadcasting anything, giving you a final chance to verify.
-
-- **Bug Fixes:** Implemented numerous fixes for API integration, transaction creation, and key handling.
 
 
 ## Example Runlog
 
 The following is an example of what a successful run looks like.
+
+```
 
 DEBUG: Fetching UTXOs from: https://blockchain.info/unspent?active=3A...
 ...
@@ -142,4 +144,7 @@ Network Fee: 9000 sats (max allowed: 30000 sats)
 If you approve of this transaction, type 'I have verified this transaction, and I want to broadcast it now': I have verified this transaction, and I want to broadcast it now
 
 Sweep Success!
+
 Tx_id: a1b2c3d4...
+
+```
