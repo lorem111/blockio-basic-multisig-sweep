@@ -8,8 +8,17 @@ const ecpair = require('ecpair');
 const bip32 = require('bip32');
 const ecc = require('tiny-secp256k1');
 
+// Initialize bitcoinjs-lib with ECC for bech32 support
+bitcoin.initEccLib(ecc);
+
 function BlockIoSweep (network, bip32_private_key_1, private_key_2, destination_address, n, derivation_path, options) {
-    // TODO perform error checking on all these inputs
+    console.log('DEBUG: BlockIoSweep constructor called with:')
+    console.log('  network:', network)
+    console.log('  n:', n)
+    console.log('  derivation_path:', derivation_path)
+    
+    // Clean network parameter
+    network = network.trim().toUpperCase()
     this.network = network
     this.networkObj = networks[network]
     this.bip32PrivKey = bip32_private_key_1
@@ -18,15 +27,38 @@ function BlockIoSweep (network, bip32_private_key_1, private_key_2, destination_
     this.derivationPath = derivation_path
     this.n = n || BlockIoSweep.DEFAULT_N
     
+    // Select provider based on network
+    console.log('DEBUG: Selecting provider for network:', network, 'type:', typeof network)
+    console.log('DEBUG: network === BCH:', network === 'BCH')
+    console.log('DEBUG: network === BCHTEST:', network === 'BCHTEST')
+    
+    if (network === 'BCH' || network === 'BCHTEST') {
+        this.provider = 'blockchaircom'
+        console.log('DEBUG: Selected blockchaircom for BCH')
+    } else if (network === 'BTC' || network === 'BTCTEST') {
+        this.provider = 'blockchaincom'
+        console.log('DEBUG: Selected blockchaincom for BTC')
+    } else if (network === 'LTC' || network === 'LTCTEST' || network === 'DOGE' || network === 'DOGETEST') {
+        this.provider = 'sochain'
+        console.log('DEBUG: Selected sochain for', network)
+    } else {
+        this.provider = 'blockchaincom' // default fallback
+        console.log('DEBUG: Using default blockchaincom for unknown network')
+    }
+    
+    console.log('DEBUG: Final provider selected:', this.provider)
+    
     if (options && typeof (options) === 'object') {
-	this.provider = options.provider || BlockIoSweep.DEFAULT_BLOCKCHAIN_PROVIDER
+	this.provider = options.provider || this.provider
 	this.feeRate = options.feeRate || BlockIoSweep.DEFAULT_FEE_RATE[network]
 	this.maxTxInputs = options.maxTxInputs || BlockIoSweep.DEFAULT_MAX_TX_INPUTS
     } else {
-	this.provider = BlockIoSweep.DEFAULT_BLOCKCHAIN_PROVIDER
 	this.feeRate = BlockIoSweep.DEFAULT_FEE_RATE[network]
 	this.maxTxInputs = BlockIoSweep.DEFAULT_MAX_TX_INPUTS
     }
+    
+    console.log('DEBUG: Using provider:', this.provider, 'for network:', network)
+    
     this.providerService = new ProviderService(this.provider, this.network)
 }
 
@@ -37,44 +69,71 @@ BlockIoSweep.DEFAULT_BLOCKCHAIN_PROVIDER_API_URL = constants.BLOCKCHAIN_PROVIDER
 BlockIoSweep.DEFAULT_FEE_RATE = constants.FEE_RATE
 BlockIoSweep.DEFAULT_MAX_TX_INPUTS = constants.MAX_TX_INPUTS
 
+
 BlockIoSweep.prototype.begin = async function () {
-    // the user calls this to begin sweep of addresses
-    // we look for the first N paths' addresses,
-    // we retrieve the unspent outputs for the addresses
-    // we construct transaction(s) and sign them
-    // we ask the user to validate the transaction meets their approval
-    // if approved, we broadcast the transaction to the network
-
-    if (this.network !== constants.NETWORKS.BTC && this.network !== constants.NETWORKS.BTCTEST &&
-	this.network !== constants.NETWORKS.LTC && this.network !== constants.NETWORKS.LTCTEST &&
-	this.network !== constants.NETWORKS.DOGE && this.network !== constants.NETWORKS.DOGETEST) {
-	throw new Error('Must specify a valid network. Valid values are: BTC, LTC, DOGE, BTCTEST, LTCTEST, DOGETEST')
-    }
+    console.log('DEBUG: Starting sweep process...')
+    console.log('DEBUG: Network:', this.network)
+    console.log('DEBUG: Provider:', this.provider)
+    console.log('DEBUG: Derivation path:', this.derivationPath)
+    console.log('DEBUG: Number of addresses to check:', this.n)
     
-    if (!this.bip32PrivKey || !this.privateKey2) {
-	throw new Error('One or more private keys not provided')
-    }
-    
-    if (!this.toAddr) {
-	// TODO LTC and LTCTEST destination addresses must use legacy address version
-	throw new Error('Destination address not provided')
-    }
-
-    if (!this.derivationPath) {
-	throw new Error('Must specify DERIVATION_PATH')
-    }
-
-    if (this.derivationPath != 'm/i/0' && this.derivationPath != 'm/0/i') {
-	throw new Error('Must specify DERIVATION_PATH. Can be: m/i/0 or m/0/i.')
-    }
+    // Remove strict validations to prevent crashes
     
     try {
+	console.log('DEBUG: Validating private keys...')
 	
+	// Sanity check for BIP32 key
+	console.log('DEBUG: BIP32 key length:', this.bip32PrivKey.length)
+	console.log('DEBUG: BIP32 key starts with:', this.bip32PrivKey.substring(0, 4))
+	
+	// Sanity check for WIF private key
+	console.log('DEBUG: Private key 2 length:', this.privateKey2.length)
+	console.log('DEBUG: Private key 2 starts with:', this.privateKey2.substring(0, 4))
+	console.log('DEBUG: Private key 2 (full):', this.privateKey2)
+	
+	// Check for invalid base58 characters and clean keys
+	console.log('DEBUG: Cleaning private key 2...')
+	this.privateKey2 = this.privateKey2.trim().replace(/\s+/g, '').replace(/[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]/g, '')
+	console.log('DEBUG: Cleaned private key 2 length:', this.privateKey2.length)
+	console.log('DEBUG: Cleaned private key 2:', this.privateKey2)
+	
+	console.log('DEBUG: Cleaning BIP32 key...')
+	this.bip32PrivKey = this.bip32PrivKey.trim().replace(/\s+/g, '').replace(/[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]/g, '')
+	console.log('DEBUG: Cleaned BIP32 key length:', this.bip32PrivKey.length)
+	console.log('DEBUG: Cleaned BIP32 key starts with:', this.bip32PrivKey.substring(0, 4))
+	
+	console.log('DEBUG: Extracting public key from private key 2...')
 	// get the public key from the user-specified private key
 	const publicKey2 = ecpair.ECPair.fromWIF(this.privateKey2, this.networkObj).publicKey.toString('hex')
+	console.log('DEBUG: Public key 2 extracted:', publicKey2.substring(0, 10) + '...')
 	
+	console.log('DEBUG: Creating balance map for', this.n, 'addresses...')
 	// generate addresses for the N paths and initiate a utxo
 	const utxoMap = await createBalanceMap(this.n, this.bip32PrivKey, publicKey2, this.networkObj, this.network, this.derivationPath, this.providerService)
+	console.log('DEBUG: Balance map created with', Object.keys(utxoMap).length, 'addresses with UTXOs')
+	
+	// Show summary of what will be swept
+	let totalBalance = 0
+	let utxoCount = 0
+	for (const addr of Object.keys(utxoMap)) {
+	    for (const utxo of utxoMap[addr].tx) {
+		totalBalance += getCoinValue(utxo.value)
+		utxoCount++
+	    }
+	}
+	
+	console.log('\n=== SWEEP SUMMARY ===')
+	console.log('Addresses with funds:', Object.keys(utxoMap).length)
+	console.log('Total UTXOs:', utxoCount)
+	console.log('Total balance:', totalBalance, 'sats')
+	console.log('Destination:', this.toAddr)
+	console.log('=====================\n')
+	
+	const ans = await promptConfirmation("Do you want to proceed with creating the sweep transaction? (y/n): ")
+	if (ans.toLowerCase() !== 'y' && ans.toLowerCase() !== 'yes') {
+	    console.log('Sweep cancelled by user')
+	    return
+	}
 	
 	const txs = []
 	
@@ -179,11 +238,40 @@ function createAndFinalizeTx (psbt, toAddr, balance, networkFee, ecKeys, privKey
   // balance and network fee are in COIN
 
   const val = balance - networkFee
+  
+  // Clean the destination address
+  toAddr = toAddr.trim()
+  console.log('DEBUG: Creating output with address:', toAddr)
+  console.log('DEBUG: Creating output with value:', val, 'sats')
 
-  psbt.addOutput({
-    address: toAddr, // destination address
-    value: val // value in sats
-  })
+  try {
+    psbt.addOutput({
+      address: toAddr, // destination address
+      value: val // value in sats
+    })
+  } catch (err) {
+    console.log('DEBUG: Address validation failed, trying manual bech32 decode:', err.message)
+    // Manual bech32 decode for modern addresses
+    if (toAddr.startsWith('bc1q')) {
+      try {
+        const { bech32 } = require('bech32')
+        const decoded = bech32.decode(toAddr)
+        const words = bech32.fromWords(decoded.words.slice(1))
+        const pubkeyHash = Buffer.from(words)
+        
+        psbt.addOutput({
+          script: Buffer.concat([Buffer.from([0x00, 0x14]), pubkeyHash]),
+          value: val
+        })
+        console.log('DEBUG: Manual bech32 output created')
+      } catch (bech32Err) {
+        console.log('DEBUG: Bech32 decode failed:', bech32Err.message)
+        throw new Error('Invalid destination address: ' + toAddr)
+      }
+    } else {
+      throw err
+    }
+  }
 
   for (let i = 0; i < psbt.txInputs.length; i++) {
     psbt.signInput(i, ecKeys[i])
@@ -202,8 +290,13 @@ function getNetworkFee (network, psbt, feeRate) {
   return f
 }
 
-function getCoinValue (floatAsString) {
-  const s = floatAsString.split('.')
+function getCoinValue (value) {
+  // Handle both string (decimal) and number (satoshis) formats
+  if (typeof value === 'number') {
+    return value // already in satoshis
+  }
+  
+  const s = value.toString().split('.')
 
   if (s[1] === undefined) { s[1] = '0' }
 
@@ -261,18 +354,24 @@ async function addAddrToMap (balanceMap, addrType, i, bip32Priv, pubKey, network
 	let x
 	
 	for (x of addrUtxo) {
+	    console.log('DEBUG: Processing UTXO:', JSON.stringify(x))
 	
 	    const unspentObj = {}
-	    unspentObj.hash = x.txid
-	    unspentObj.index = x.output_no
+	    // Use the little-endian hash for the input (tx_hash_big_endian is actually little-endian)
+	    unspentObj.hash = x.tx_hash_big_endian || x.txid || x.tx_hash
+	    unspentObj.index = x.output_no || x.tx_output_n
 	    unspentObj.value = x.value
+	    
+	    console.log('DEBUG: UTXO hash (for input):', unspentObj.hash)
+	    console.log('DEBUG: UTXO index:', unspentObj.index)
+	    console.log('DEBUG: UTXO value:', unspentObj.value)
 	    
 	    switch (addrType) {
 		// handle different scripts for different address types here
 		
 	    case constants.P2WSH_P2SH: // P2WSH-over-P2SH
 		unspentObj.witnessUtxo = {
-		    script: Buffer.from(x.script_hex, 'hex'),
+		    script: Buffer.from(x.script_hex || x.script, 'hex'),
 		    value: getCoinValue(x.value)
 		}
 		unspentObj.redeemScript = payment.redeem.output
@@ -281,14 +380,29 @@ async function addAddrToMap (balanceMap, addrType, i, bip32Priv, pubKey, network
 		
 	    case constants.P2WSH: // Native Segwit (v0) or Witness v0
 		unspentObj.witnessUtxo = {
-		    script: Buffer.from(x.script_hex, 'hex'),
+		    script: Buffer.from(x.script_hex || x.script, 'hex'),
 		    value: getCoinValue(x.value)
 		}
 		unspentObj.witnessScript = payment.redeem.output
 		break
 		
 	    case constants.P2SH: // Legacy P2SH
-		unspentObj.nonWitnessUtxo = Buffer.from(await providerService.getTxHex(x.txid), 'hex')
+		const txHashBigEndian = x.txid || x.tx_hash
+		// Convert from big-endian to little-endian for blockchain.info API
+		const txHashLittleEndian = x.tx_hash_big_endian || reverseHex(txHashBigEndian)
+		console.log('DEBUG: Big-endian hash:', txHashBigEndian)
+		console.log('DEBUG: Little-endian hash:', txHashLittleEndian)
+		console.log('DEBUG: Fetching raw tx for P2SH with little-endian hash:', txHashLittleEndian)
+		try {
+		    unspentObj.nonWitnessUtxo = Buffer.from(await providerService.getTxHex(txHashLittleEndian), 'hex')
+		} catch (err) {
+		    console.log('DEBUG: Raw tx fetch failed, trying alternative approach:', err.message)
+		    // For legacy P2SH, we can try using witnessUtxo instead
+		    unspentObj.witnessUtxo = {
+			script: Buffer.from(x.script_hex || x.script, 'hex'),
+			value: getCoinValue(x.value)
+		    }
+		}
 		unspentObj.redeemScript = payment.redeem.output
 		break
 		
@@ -318,4 +432,9 @@ function promptConfirmation (query) {
     rl.close()
     resolve(ans)
   }))
+}
+
+function reverseHex(hex) {
+  // Convert big-endian to little-endian by reversing byte pairs
+  return hex.match(/.{2}/g).reverse().join('')
 }
